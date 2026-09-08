@@ -1,0 +1,13 @@
+[project]
+name = "vqe-nisq-project"
+version = "0.1.0"
+description = "Comparative study of VQE ansatze and error mitigation strategies on NISQ-era quantum hardware"
+authors = [
+    { name = "Tuna Tyurkoglu", email = "tuna.tyurkoglu@tum.de" }
+]
+requires-python = ">=3.12,<3.13"
+dependencies = []
+
+[build-system]
+requires = ["uv_build>=0.12.10,<0.13.0"]
+build-backend = "uv_build"
