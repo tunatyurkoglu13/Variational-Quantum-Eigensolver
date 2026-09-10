@@ -6,7 +6,20 @@ authors = [
     { name = "Tuna Tyurkoglu", email = "tuna.tyurkoglu@tum.de" }
 ]
 requires-python = ">=3.12,<3.13"
-dependencies = []
+dependencies = [
+    "mitiq>=1.1.0",
+    "mthree>=3.0.0",
+    "openfermion>=1.8.1",
+    "pennylane>=0.45.1",
+    "pennylane-lightning>=0.45.0",
+    "pennylane-qiskit>=0.45.0",
+    "pyscf>=2.14.0",
+    "qiskit>=2.3.0",
+    "qiskit-aer>=0.17.2",
+    "qiskit-algorithms>=0.4.0",
+    "qiskit-ibm-runtime>=0.45.1",
+    "qiskit-nature>=0.8.0",
+]
 
 [build-system]
 requires = ["uv_build>=0.12.10,<0.13.0"]
