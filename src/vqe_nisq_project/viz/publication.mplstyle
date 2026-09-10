@@ -1,0 +1,49 @@
+# Publication-quality matplotlib style for vqe-nisq-project.
+# Categorical color order is CVD-validated (worst adjacent CVD dE 9.1 light,
+# worst normal-vision dE 19.6) -- do not reorder without re-running the validator.
+# Colors + marker order must stay in sync with viz/style.py's CATEGORICAL_COLORS/MARKERS.
+
+figure.figsize: 6.0, 4.0
+figure.dpi: 150
+figure.facecolor: fcfcfb
+
+savefig.dpi: 300
+savefig.bbox: tight
+savefig.transparent: False
+savefig.facecolor: fcfcfb
+
+# Vector-embedded, editable text (required by most journals/arXiv) -- not Type 3 bitmap fonts.
+pdf.fonttype: 42
+ps.fonttype: 42
+
+font.family: STIXGeneral
+mathtext.fontset: stix
+font.size: 10
+
+axes.titlesize: 11
+axes.labelsize: 10
+axes.linewidth: 0.8
+axes.edgecolor: 0b0b0b
+axes.labelcolor: 0b0b0b
+axes.facecolor: fcfcfb
+
+axes.grid: True
+axes.axisbelow: True
+grid.color: e1e0d9
+grid.linewidth: 0.5
+grid.alpha: 0.8
+
+axes.prop_cycle: cycler('color', ['2a78d6', 'eb6834', '1baf7a', 'eda100', 'e87ba4', '008300', '4a3aa7', 'e34948']) + cycler('marker', ['o', 's', '^', 'D', 'v', 'P', 'X', '*'])
+
+lines.linewidth: 1.8
+lines.markersize: 5
+lines.markeredgewidth: 0.0
+
+legend.frameon: False
+legend.fontsize: 9
+legend.handlelength: 1.6
+
+xtick.labelsize: 9
+ytick.labelsize: 9
+xtick.color: 52514e
+ytick.color: 52514e
