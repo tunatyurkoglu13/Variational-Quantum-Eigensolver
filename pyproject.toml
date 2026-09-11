@@ -68,12 +68,20 @@ module = [
     "qiskit_ibm_runtime.*",
     "pennylane.*",
     "pyscf.*",
-    "openfermion.*",
     "mitiq.*",
     "mthree.*",
     "hydra.*",
 ]
 ignore_missing_imports = true
+
+# openfermion ships partial/inconsistent inline type hints, which (unlike a
+# fully-untyped package) makes mypy strict-mode's no-untyped-call and
+# no-implicit-reexport checks fire on it instead of being silently skipped.
+[[tool.mypy.overrides]]
+module = ["openfermion.*"]
+ignore_missing_imports = true
+disallow_untyped_calls = false
+implicit_reexport = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
