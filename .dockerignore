@@ -1,0 +1,13 @@
+.git/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+__pycache__/
+mlruns/
+mlartifacts/
+mlflow.db
+outputs/
+multirun/
+docs/site/
+site/

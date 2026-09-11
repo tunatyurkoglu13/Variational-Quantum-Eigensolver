@@ -38,12 +38,16 @@ ALL_PAIRS_SAFE_COUNT = 3
 # (e.g. barren-plateau gradient-variance heatmaps). Steps 100->700 from the
 # dataviz skill's reference palette.
 _SEQUENTIAL_BLUE_STEPS = [
-    "#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5",
-    "#256abf", "#1c5cab", "#104281", "#0d366b",
+    "#cde2fb",
+    "#9ec5f4",
+    "#6da7ec",
+    "#3987e5",
+    "#256abf",
+    "#1c5cab",
+    "#104281",
+    "#0d366b",
 ]
-SEQUENTIAL_BLUE = LinearSegmentedColormap.from_list(
-    "vqe_seq_blue", _SEQUENTIAL_BLUE_STEPS
-)
+SEQUENTIAL_BLUE = LinearSegmentedColormap.from_list("vqe_seq_blue", _SEQUENTIAL_BLUE_STEPS)
 
 
 def apply_style() -> None:

@@ -1,0 +1,15 @@
+defaults:
+  - _self_
+
+hydra:
+  job:
+    chdir: false
+
+seed: 42
+
+mlflow:
+  # mlflow>=3.x puts the plain './mlruns' file-store in maintenance mode (throws
+  # unless MLFLOW_ALLOW_FILE_STORE=true) -- sqlite is mlflow's own recommended
+  # local, serverless replacement. Still a single local file, no external service.
+  tracking_uri: sqlite:///mlflow.db
+  experiment_name: vqe-nisq-dev

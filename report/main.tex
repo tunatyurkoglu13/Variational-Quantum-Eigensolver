@@ -1,0 +1,53 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{graphicx}
+\usepackage{physics}
+\usepackage{siunitx}
+\usepackage{booktabs}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+\usepackage[backend=biber,style=numeric,sorting=none]{biblatex}
+\addbibresource{refs.bib}
+
+\title{Chemical Accuracy on NISQ Devices: A Comparative Study of VQE Ansatze and Error Mitigation}
+\author{Tuna Tyurkoglu}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+TODO: to be written once Phase 7 results exist. Placeholder scaffold only --
+no results are claimed yet.
+\end{abstract}
+
+\section{Introduction}
+TODO (Phase 1+): motivate the research question -- under what conditions is
+chemical accuracy ($|\Delta E| < 1.6$ mHa) achievable on NISQ devices via VQE,
+and what limits it.
+
+\section{Theory}
+\label{sec:theory}
+TODO (Phase 1--2): Born-Oppenheimer approximation, second quantization,
+fermion-to-qubit mappings, the VQE variational principle.
+
+\section{Methods}
+\label{sec:methods}
+TODO (Phase 3--6): ansatz library, optimizers, noise models, error mitigation
+techniques, hardware access.
+
+\section{Results}
+\label{sec:results}
+TODO (Phase 7): bond dissociation curves, convergence statistics, error
+mitigation waterfall analysis, error budget decomposition.
+
+\section{Discussion}
+TODO (Phase 7).
+
+\section{Limitations}
+TODO -- to be taken seriously, not a formality.
+
+\printbibliography
+
+\end{document}

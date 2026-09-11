@@ -1,0 +1,22 @@
+{
+  "name": "vqe-nisq-project",
+  "build": {
+    "context": "..",
+    "dockerfile": "../Dockerfile"
+  },
+  "overrideCommand": true,
+  "remoteUser": "root",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "charliermarsh.ruff",
+        "ms-python.mypy-type-checker",
+        "redhat.vscode-yaml"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/app/.venv/bin/python"
+      }
+    }
+  }
+}

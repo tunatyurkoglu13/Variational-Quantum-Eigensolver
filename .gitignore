@@ -18,6 +18,7 @@ __pycache__/
 # mlflow local tracking store
 mlruns/
 mlartifacts/
+mlflow.db
 
 # Experiment outputs (regenerable from configs + seeds)
 outputs/
