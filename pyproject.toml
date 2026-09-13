@@ -66,19 +66,23 @@ module = [
     "qiskit_nature.*",
     "qiskit_algorithms.*",
     "qiskit_ibm_runtime.*",
-    "pennylane.*",
     "pyscf.*",
     "mitiq.*",
     "mthree.*",
     "hydra.*",
+    "scipy.*",
 ]
 ignore_missing_imports = true
 
-# openfermion ships partial/inconsistent inline type hints, which (unlike a
-# fully-untyped package) makes mypy strict-mode's no-untyped-call and
-# no-implicit-reexport checks fire on it instead of being silently skipped.
+# openfermion and pennylane ship partial/inconsistent inline type hints, which
+# (unlike a fully-untyped package) makes mypy strict-mode's no-untyped-call and
+# no-implicit-reexport checks fire on calls *into* them instead of being
+# silently skipped. (These per-module overrides configure checking of code
+# *inside* the named modules, not calls into them from our own code -- calls
+# to their untyped decorators like `@qml.qnode` still need a targeted
+# `# type: ignore[untyped-decorator]` at each call site.)
 [[tool.mypy.overrides]]
-module = ["openfermion.*"]
+module = ["openfermion.*", "pennylane.*"]
 ignore_missing_imports = true
 disallow_untyped_calls = false
 implicit_reexport = true
