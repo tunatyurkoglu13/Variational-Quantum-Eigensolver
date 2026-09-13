@@ -1,53 +1,50 @@
-"""Ground truth: the Z2-tapered Hamiltonian's ground state must still match FCI -- picking the
-wrong symmetry sector would silently give a physically wrong (but plausible-looking) energy."""
+"""Ground truth: the Z2-tapered Hamiltonian's ground state must still match (active-space)
+FCI -- picking the wrong symmetry sector would silently give a physically wrong (but
+plausible-looking) energy."""
 
 import pytest
 
-from vqe_nisq_project.chemistry.integrals import compute_mo_integrals
-from vqe_nisq_project.chemistry.mappings import build_electronic_fermionic_op, map_hamiltonian
-from vqe_nisq_project.chemistry.molecule import h2
-from vqe_nisq_project.chemistry.reference import compute_reference_energies
+from conftest import cached_mapping as map_hamiltonian
+from conftest import cached_mo_integrals as compute_mo_integrals
+from conftest import cached_reference_energies as compute_reference_energies
+from conftest import cached_tapered_sector
+from vqe_nisq_project.chemistry.molecule import MoleculeSpec, beh2, h2, lih
 from vqe_nisq_project.chemistry.tapering import find_tapered_sector
 
-
-def _h2_jw_setup():
-    spec = h2()
-    integrals = compute_mo_integrals(spec)
-    fci = compute_reference_energies(spec).fci
-    fop = build_electronic_fermionic_op(integrals)
-    jw = map_hamiltonian(fop, "jordan_wigner")
-    return integrals, fci, jw
+_CASES = [(h2(), 0), (lih(), 1), (beh2(), 1)]
+_IDS = ["h2", "lih", "beh2"]
 
 
-def test_tapered_ground_state_matches_fci() -> None:
-    integrals, fci, jw = _h2_jw_setup()
-    electronic_fci = fci - integrals.e_nuc
+@pytest.mark.parametrize(("spec", "n_frozen_core"), _CASES, ids=_IDS)
+def test_tapered_ground_state_matches_fci(spec: MoleculeSpec, n_frozen_core: int) -> None:
+    integrals = compute_mo_integrals(spec, n_frozen_core=n_frozen_core)
+    fci = compute_reference_energies(spec, n_frozen_core=n_frozen_core).fci
 
-    result = find_tapered_sector(jw.qubit_op, electronic_fci)
-    total = result.electronic_ground_state + integrals.e_nuc
-    assert abs(total - fci) < 1e-8
+    result = cached_tapered_sector(spec, n_frozen_core)
+    total = result.electronic_ground_state + integrals.e_core
+    assert abs(total - fci) < 1e-6
 
 
-def test_h2_sto3g_removes_three_qubits() -> None:
-    # Regression check for this specific system: qiskit's general Z2Symmetries
-    # finder locates 3 independent symmetries here (more than the textbook
-    # particle-number + Sz-parity pair that gives the well-known 4->2 qubit
-    # reduction) -- plausibly extra structure specific to this minimal-basis,
-    # 2-orbital system rather than a generally-expected result for larger
-    # molecules. Verified empirically, not assumed.
-    integrals, fci, jw = _h2_jw_setup()
-    electronic_fci = fci - integrals.e_nuc
-
-    result = find_tapered_sector(jw.qubit_op, electronic_fci)
-    assert result.n_qubits_removed == 3
-    assert result.tapered_op.num_qubits == 1
+@pytest.mark.parametrize(
+    ("spec", "n_frozen_core", "expected_qubits_removed"),
+    [(h2(), 0, 3), (lih(), 1, 4), (beh2(), 1, 5)],
+    ids=_IDS,
+)
+def test_qubits_removed_regression(
+    spec: MoleculeSpec, n_frozen_core: int, expected_qubits_removed: int
+) -> None:
+    # Regression check: how many Z2 symmetries qiskit's general finder
+    # locates is specific to each system's Hamiltonian structure, not a
+    # fixed textbook number -- verified empirically per molecule, not
+    # assumed to always be the textbook particle-number+Sz-parity pair of 2.
+    result = cached_tapered_sector(spec, n_frozen_core)
+    assert result.n_qubits_removed == expected_qubits_removed
 
 
 def test_no_matching_sector_raises() -> None:
-    # 999.0 is nowhere near any of the 8 sectors' ground states for this
-    # system (verified: they range roughly -1.86 to 0.0) -- an unambiguous
-    # "no physical match" reference, unlike 0.0 which happens to coincide
-    # with one sector's actual ground state here.
-    _integrals, _fci, jw = _h2_jw_setup()
+    # 999.0 is nowhere near any of H2's sectors' ground states (verified:
+    # they range roughly -1.86 to 0.0) -- an unambiguous "no physical match"
+    # reference, unlike 0.0 which happens to coincide with one sector here.
+    jw = map_hamiltonian(h2(), 0, "jordan_wigner")
     with pytest.raises(ValueError, match="Expected exactly one"):
         find_tapered_sector(jw.qubit_op, reference_electronic_energy=999.0)

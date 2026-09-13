@@ -35,3 +35,28 @@ def h2(bond_length_angstrom: float = 0.735) -> MoleculeSpec:
         atom=f"H 0 0 0; H 0 0 {bond_length_angstrom}",
         basis="sto-3g",
     )
+
+
+# LiH and BeH2 equilibrium bond lengths below are OUR OWN RHF/STO-3G scan
+# results (see chemistry/geometry.py's scan_rhf_energy + a parabolic 3-point
+# refinement around the discrete minimum), not literature/experimental
+# values -- basis-set-specific by construction, correct for this study's own
+# internal consistency rather than for matching experiment.
+_LIH_R_EQ_ANGSTROM = 1.5154
+_BEH2_R_EQ_ANGSTROM = 1.2919
+
+
+def lih(bond_length_angstrom: float = _LIH_R_EQ_ANGSTROM) -> MoleculeSpec:
+    """LiH in the minimal STO-3G basis at a given Li-H bond length."""
+    return MoleculeSpec(
+        atom=f"Li 0 0 0; H 0 0 {bond_length_angstrom}",
+        basis="sto-3g",
+    )
+
+
+def beh2(bond_length_angstrom: float = _BEH2_R_EQ_ANGSTROM) -> MoleculeSpec:
+    """Linear, symmetric BeH2 (D-infinity-h) in the minimal STO-3G basis."""
+    return MoleculeSpec(
+        atom=f"Be 0 0 0; H 0 0 {bond_length_angstrom}; H 0 0 -{bond_length_angstrom}",
+        basis="sto-3g",
+    )
