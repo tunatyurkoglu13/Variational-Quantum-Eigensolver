@@ -14,21 +14,57 @@ from qiskit_nature.second_q.mappers import JordanWignerMapper
 
 from vqe_nisq_project.ansatz.base import AnsatzSpec, ComplexArray, FloatArray
 
-# Qubit relabeling aligning PennyLane's interleaved (alpha0,beta0,alpha1,beta1,...)
-# spin-orbital ordering with qiskit-nature's blocked (all alpha, then all beta)
-# ordering -- found empirically for H2 (num_spatial_orbitals=2) by exhaustively
-# searching all 4! qubit permutations against the known RHF reference energy (same
-# practice as the OpenFermion index-convention search in chemistry/fermionic.py).
-# Only verified for this system size; a different num_spatial_orbitals would need
-# its own search, not an assumed generalization of this specific permutation.
-H2_PENNYLANE_TO_QISKIT_NATURE_QUBIT_PERM = (2, 0, 3, 1)
+# PennyLane and qiskit-nature disagree on two independent conventions, each
+# found empirically (not assumed) rather than trusted from either library's
+# docs alone:
+#
+# 1. Spin-orbital -> qubit assignment. qiskit-nature uses "blocked" ordering
+#    (qubits 0..n_mo-1 = alpha spatial orbitals 0..n_mo-1, qubits
+#    n_mo..2*n_mo-1 = the same for beta) -- confirmed from its HartreeFock
+#    circuit, which places X gates on qubits {0, n_mo} for one alpha + one
+#    beta electron. PennyLane uses "interleaved" ordering (wire 2p = alpha
+#    spatial orbital p, wire 2p+1 = beta spatial orbital p) -- confirmed from
+#    `qml.qchem.hf_state`, which occupies wires {0, 1} for the same case.
+#
+# 2. Qubit-to-statevector-index endianness. Qiskit is little-endian: qubit q
+#    is bit q of the integer index (qubit 0 = LSB) -- confirmed via
+#    `Statevector`. PennyLane is the opposite: wire w is bit (n-1-w) of the
+#    index (wire 0 = MSB) -- confirmed by applying a lone PauliX to wire 0 on
+#    a 2-qubit device and checking which amplitude lit up (index 2 = 0b10,
+#    not index 1 = 0b01).
+#
+# `realign_pennylane_state_to_qiskit_nature` combines both corrections into
+# one index permutation, so a PennyLane statevector can be directly used
+# with a Hamiltonian matrix built (as this repo's chemistry/ package does)
+# via qiskit-nature's spin-orbital convention. Verified via ground truth (RHF
+# energy at theta=0) on two different systems -- H2 (num_spatial_orbitals=2)
+# and LiH (num_spatial_orbitals=5) -- since deriving this by pure algebra is
+# exactly the kind of index-convention step this project has repeatedly
+# found easy to get subtly wrong (see chemistry/fermionic.py's module
+# docstring for the analogous OpenFermion case).
 
 
-def permute_statevector_qubits(state: ComplexArray, perm: tuple[int, ...]) -> ComplexArray:
-    n = len(perm)
-    tensor = state.reshape([2] * n)
-    permuted: ComplexArray = np.transpose(tensor, axes=perm).reshape(-1)
-    return permuted
+def _interleaved_wire_for_block_qubit(block_qubit: int, num_spatial_orbitals: int) -> int:
+    if block_qubit < num_spatial_orbitals:
+        return 2 * block_qubit  # alpha, spatial orbital = block_qubit
+    return 2 * (block_qubit - num_spatial_orbitals) + 1  # beta
+
+
+def realign_pennylane_state_to_qiskit_nature(
+    state: ComplexArray, num_spatial_orbitals: int
+) -> ComplexArray:
+    n_qubits = 2 * num_spatial_orbitals
+    size = 2**n_qubits
+    realigned = np.empty(size, dtype=complex)
+    for k_block in range(size):
+        k_pennylane = 0
+        for q in range(n_qubits):
+            bit = (k_block >> q) & 1  # qiskit-nature block qubit q, little-endian
+            wire = _interleaved_wire_for_block_qubit(q, num_spatial_orbitals)
+            k_pennylane |= bit << (n_qubits - 1 - wire)  # PennyLane wire, big-endian
+        realigned[k_block] = state[k_pennylane]
+    result: ComplexArray = realigned
+    return result
 
 
 def build_uccsd_qiskit(num_spatial_orbitals: int, num_particles: tuple[int, int]) -> AnsatzSpec:

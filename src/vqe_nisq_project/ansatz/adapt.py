@@ -14,6 +14,31 @@ coefficients), and the corresponding circuit layer applies U_i(theta) = exp(-i*t
 |psi>, d/dtheta <psi|U_i^dagger(theta) H U_i(theta)|psi> at theta=0 works out to
 -i * <psi|[H, A_i]|psi> -- real, since [H, A_i] is anti-Hermitian (both H and A_i are
 Hermitian) and so has a purely imaginary expectation value in any state.
+
+Classical-simulation scaling (real limitations found while extending this from H2 to
+LiH/BeH2, not a hardware-noise effect):
+
+1. The pool grows fast with system size -- 3 operators for H2, 24 for LiH, 92 for
+   BeH2 -- so the gradient screen precomputes each pool operator's commutator with H
+   exactly once (done outside the main loop) rather than recomputing it every
+   iteration, which was the original bottleneck.
+2. That precompute must use SPARSE matrices. A first version used
+   `SparsePauliOp.to_matrix()` (dense): each of BeH2's 92 pool operators as a dense
+   4096x4096 complex128 matrix is 268 MB, and holding 92 of those plus their 92
+   commutators simultaneously is ~50 GB -- far more than this project's 16 GB
+   machine has, and the resulting swap thrashing was *slower* than the original
+   per-iteration-recompute version it was meant to replace. `SparsePauliOp` Pauli
+   terms are inherently sparse (each has exactly one nonzero per row), so the same
+   operators as `scipy.sparse` matrices (`to_matrix(sparse=True)`) are only ~0.02%
+   dense -- kilobytes instead of hundreds of megabytes each.
+3. The remaining, harder-to-remove cost is per-iteration re-optimization: each COBYLA
+   function evaluation re-simulates the whole grown circuit via `Statevector`, and
+   qiskit re-synthesizes every `PauliEvolutionGate` from scratch each time -- ~0.6s
+   already for a 5-excitation/10-qubit (LiH-sized) circuit. `max_cobyla_iterations`
+   bounds this cost per step; a full run to `gradient_tolerance` convergence on
+   LiH/BeH2 was, at this implementation's current state, still impractically slow
+   for interactive use even after fix #2, and is reported here as a scaling finding
+   rather than forced through with a long background run.
 """
 
 from __future__ import annotations
@@ -21,6 +46,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import numpy as np
+import scipy.sparse
 from qiskit import QuantumCircuit
 from qiskit.circuit.library import PauliEvolutionGate
 from qiskit.quantum_info import SparsePauliOp, Statevector
@@ -49,7 +75,10 @@ class AdaptVqeResult:
 
 
 def _energy(state: ComplexArray, hamiltonian: ComplexArray) -> float:
-    return float((state.conj() @ hamiltonian @ state).real)
+    # Same benign Accelerate BLAS quirk as the gradient computation below --
+    # a matrix-vector product can also trip it, not just matrix-matrix ones.
+    with np.errstate(all="ignore"):
+        return float((state.conj() @ hamiltonian @ state).real)
 
 
 def _build_circuit(
@@ -71,6 +100,7 @@ def run_adapt_vqe(
     e_core: float = 0.0,
     gradient_tolerance: float = 1e-3,
     max_iterations: int = 20,
+    max_cobyla_iterations: int = 200,
 ) -> AdaptVqeResult:
     mapper = JordanWignerMapper()
     hf = HartreeFock(num_spatial_orbitals, num_particles, mapper)
@@ -90,23 +120,32 @@ def run_adapt_vqe(
     params: FloatArray = np.array([])
     steps: list[AdaptStep] = []
 
+    # The pool operators and hence H@A_i - A_i@H are fixed for the whole run --
+    # only the current *state* changes between iterations. Precomputing these
+    # commutators once (as SPARSE matrices -- see module docstring point 2)
+    # turns each iteration's gradient screen into cheap sparse matrix-VECTOR
+    # products instead of re-deriving matrix-MATRIX products per pool
+    # operator per iteration, without the dense version's ~50 GB blowup for
+    # BeH2's 92-operator pool.
+    hamiltonian_sparse = scipy.sparse.csr_matrix(hamiltonian)
+    pool_matrices = [generator.to_matrix(sparse=True) for generator in pool]
+    commutators = [hamiltonian_sparse @ A - A @ hamiltonian_sparse for A in pool_matrices]
+
     for iteration in range(max_iterations):
         current_state = Statevector(_build_circuit(hf, pool, selected, params)).data
 
         gradients = np.zeros(len(pool))
-        for i, generator in enumerate(pool):
+        for i in range(len(pool)):
             if i in selected:
                 continue
-            A = generator.to_matrix()
             # macOS's Accelerate BLAS backend raises spurious divide-by-zero /
-            # overflow / invalid-value warnings on some complex-matrix @
-            # complex-matrix products regardless of the actual values
-            # (reproduced even for H @ H); verified the results here contain
-            # no NaN/Inf and are numerically correct, so this is suppressed
-            # rather than a sign of an actual computation error.
+            # overflow / invalid-value warnings on some complex-matrix
+            # products regardless of the actual values (reproduced even for
+            # H @ H); verified the results here contain no NaN/Inf and are
+            # numerically correct, so this is suppressed rather than a sign
+            # of an actual computation error.
             with np.errstate(all="ignore"):
-                commutator = hamiltonian @ A - A @ hamiltonian
-                commutator_expectation = current_state.conj() @ commutator @ current_state
+                commutator_expectation = current_state.conj() @ commutators[i] @ current_state
             gradients[i] = float((-1j * commutator_expectation).real)
 
         best = int(np.argmax(np.abs(gradients)))
@@ -120,7 +159,15 @@ def run_adapt_vqe(
             state = Statevector(_build_circuit(hf, pool, selected, theta)).data
             return _energy(state, hamiltonian)
 
-        result = minimize(cost, params, method="L-BFGS-B")
+        # COBYLA (gradient-free) avoids the O(n_params) extra function
+        # evaluations a finite-difference L-BFGS-B would need per iteration
+        # -- each evaluation here is itself a full circuit statevector
+        # simulation (expensive: qiskit re-synthesizes each PauliEvolutionGate
+        # from scratch on every call, ~0.6s already for a 5-excitation/10-qubit
+        # circuit -- see the module docstring's scaling note), so bounding
+        # eval count matters more than squeezing out the last bit of
+        # per-step convergence.
+        result = minimize(cost, params, method="COBYLA", options={"maxiter": max_cobyla_iterations})
         params = result.x
 
         steps.append(
