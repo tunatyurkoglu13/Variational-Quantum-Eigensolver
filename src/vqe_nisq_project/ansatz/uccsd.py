@@ -7,6 +7,7 @@ decomposition by hand.
 from __future__ import annotations
 
 import numpy as np
+import numpy.typing as npt
 import pennylane as qml
 from qiskit.quantum_info import Statevector
 from qiskit_nature.second_q.circuit.library import UCC, HartreeFock
@@ -50,20 +51,45 @@ def _interleaved_wire_for_block_qubit(block_qubit: int, num_spatial_orbitals: in
     return 2 * (block_qubit - num_spatial_orbitals) + 1  # beta
 
 
+def pennylane_index_for_block_index(num_spatial_orbitals: int) -> npt.NDArray[np.int64]:
+    """index_map[k_block] = k_pennylane: the PennyLane-basis computational-basis index
+    holding the same physical configuration as qiskit-nature-block index k_block."""
+    n_qubits = 2 * num_spatial_orbitals
+    size = 2**n_qubits
+    k_block = np.arange(size)
+    k_pennylane = np.zeros(size, dtype=np.int64)
+    for q in range(n_qubits):
+        bit = (k_block >> q) & 1  # qiskit-nature block qubit q, little-endian
+        wire = _interleaved_wire_for_block_qubit(q, num_spatial_orbitals)
+        k_pennylane |= bit << (n_qubits - 1 - wire)  # PennyLane wire, big-endian
+    return k_pennylane
+
+
 def realign_pennylane_state_to_qiskit_nature(
     state: ComplexArray, num_spatial_orbitals: int
 ) -> ComplexArray:
-    n_qubits = 2 * num_spatial_orbitals
-    size = 2**n_qubits
-    realigned = np.empty(size, dtype=complex)
-    for k_block in range(size):
-        k_pennylane = 0
-        for q in range(n_qubits):
-            bit = (k_block >> q) & 1  # qiskit-nature block qubit q, little-endian
-            wire = _interleaved_wire_for_block_qubit(q, num_spatial_orbitals)
-            k_pennylane |= bit << (n_qubits - 1 - wire)  # PennyLane wire, big-endian
-        realigned[k_block] = state[k_pennylane]
-    result: ComplexArray = realigned
+    index_map = pennylane_index_for_block_index(num_spatial_orbitals)
+    result: ComplexArray = state[index_map]
+    return result
+
+
+def realign_hamiltonian_to_pennylane_basis(
+    hamiltonian: ComplexArray, num_spatial_orbitals: int
+) -> ComplexArray:
+    """The inverse-direction transform of `realign_pennylane_state_to_qiskit_nature`: turns
+    a Hamiltonian matrix built in qiskit-nature's (block, little-endian) basis -- as
+    chemistry/mappings.py's output is -- into PennyLane's (interleaved, big-endian) basis,
+    so it can be used directly as `qml.Hermitian(...)` with a PennyLane-native ansatz
+    circuit/state, e.g. for `qml.grad`-based (Adam) optimization.
+
+    Missing this step is a real bug this project hit: feeding the raw qiskit-nature-basis
+    Hamiltonian straight into `qml.Hermitian` for a PennyLane qnode silently computes a
+    physically wrong expectation value (no error, no NaN -- just the wrong basis pairing),
+    which first showed up as Adam optimization "converging" to a nonsensical energy at
+    theta=0 that didn't match RHF.
+    """
+    index_map = pennylane_index_for_block_index(num_spatial_orbitals)
+    result: ComplexArray = hamiltonian[np.ix_(index_map, index_map)]
     return result
 
 
