@@ -97,7 +97,9 @@ def test_prepare_for_backend_then_device_noise_measurably_biases_the_energy_esti
     noise_model = build_noise_model(backend)
 
     bound_circuit = ansatz.qiskit_circuit.assign_parameters(params)
-    isa_circuit, isa_hamiltonian = prepare_for_backend(bound_circuit, mapping.qubit_op, backend)
+    isa_circuit, isa_hamiltonian = prepare_for_backend(
+        bound_circuit, mapping.qubit_op, backend, seed_transpiler=123
+    )
     no_params = np.array([])  # already bound above -- isa_circuit has no free parameters
 
     noiseless = estimate_energy(

@@ -80,17 +80,32 @@ class NoisyEnergyResult:
 
 
 def prepare_for_backend(
-    circuit: QuantumCircuit, hamiltonian: SparsePauliOp, backend: BackendV2
+    circuit: QuantumCircuit,
+    hamiltonian: SparsePauliOp,
+    backend: BackendV2,
+    seed_transpiler: int | None = None,
 ) -> tuple[QuantumCircuit, SparsePauliOp]:
     """Rewrite `circuit` into `backend`'s native basis gates/physical qubits (an "ISA
     circuit") and permute `hamiltonian`'s qubit labels to match -- REQUIRED before passing
     a noise_model built from that same backend to `estimate_energy`, or the noise model
-    silently has no effect at all (see module docstring, Real finding #1)."""
+    silently has no effect at all (see module docstring, Real finding #1).
+
+    Real finding #3: `transpile`'s routing/synthesis passes use their own internal
+    randomness and are NOT deterministic across calls unless `seed_transpiler` is set --
+    repeated calls on the identical circuit/backend/layout were observed to return
+    slightly different gate counts and depths (e.g. 77-79 `sx`, 59-63 `rz`, at a fixed 39
+    `cz` for one specific circuit tried). Since gate count/depth directly sets how much
+    noise a noisy simulation picks up, an unseeded transpile makes noisy-energy results
+    silently irreproducible run-to-run even with `estimate_energy`'s own `seed` fixed --
+    found via a bias-magnitude comparison across separate runs that should have agreed and
+    didn't. Pass a fixed `seed_transpiler` whenever a specific numeric result needs to be
+    reproduced (as this project's tests and reported numbers do)."""
     isa_circuit = transpile(
         circuit,
         backend=backend,
         optimization_level=1,
         initial_layout=list(range(circuit.num_qubits)),
+        seed_transpiler=seed_transpiler,
     )
     isa_hamiltonian = hamiltonian.apply_layout(isa_circuit.layout)
     return isa_circuit, isa_hamiltonian
