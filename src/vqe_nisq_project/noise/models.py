@@ -33,6 +33,19 @@ represents "a working two-qubit gate on this device" and is what `NoiseSummary` 
 alongside the disabled-coupler count so the discrepancy is visible rather than hidden.
 Readout error has the same shape (median 2.3%, but one qubit at 56.5%), so it gets the
 same median treatment.
+
+Second real finding, found later against LIVE `ibm_marrakesh` calibration data (Phase 6):
+the same `error == 1.0` disabled-qubit sentinel ALSO shows up on single-qubit gates (4 of
+156 qubits' `x`/`sx`/`id` gates reported `error == 1.0`) -- something FakeTorino's frozen
+snapshot happened not to exhibit, which is exactly why this module originally used a plain
+MEAN for one-qubit gate error and only used medians for two-qubit/readout error. That
+assumption did not generalize: on `ibm_marrakesh`, the naive mean gave ~2.0% (absurd for a
+Heron r2 single-qubit gate), while the median gave ~0.05% (physically sane, matching
+FakeTorino's own ~0.05% one-qubit figure). Fixed by using the median (with a disabled-gate
+count, mirroring the two-qubit treatment) for one-qubit gate error too -- a concrete
+lesson in why one synthetic snapshot is not a substitute for checking against a second,
+independent, LIVE data source before trusting a "this field doesn't need the same
+treatment" judgment call.
 """
 
 from __future__ import annotations
@@ -49,18 +62,21 @@ class NoiseSummary:
     """Device-wide averages -- for reporting/plotting, not for feeding back into the
     noise model itself (the model keeps the full per-qubit/per-gate detail).
 
-    Two-qubit gate error and readout error are reported as MEDIANS (see module
+    One-/two-qubit gate error and readout error are reported as MEDIANS (see module
     docstring: a plain mean is dominated by disabled/outlier qubits and couplers on a
-    real device's calibration snapshot). T1/T2/one-qubit-gate-error showed no comparable
-    sentinel-value pathology and are reported as means."""
+    real device's calibration snapshot -- confirmed on both FakeTorino's frozen snapshot
+    AND live `ibm_marrakesh` data). T1/T2 showed no comparable sentinel-value pathology
+    and are reported as means."""
 
     backend_name: str
     n_qubits: int
     mean_t1_us: float
     mean_t2_us: float
-    mean_one_qubit_gate_error: float
+    median_one_qubit_gate_error: float
     median_two_qubit_gate_error: float
     median_readout_error: float
+    n_disabled_one_qubit_gates: int
+    n_one_qubit_gates: int
     n_disabled_two_qubit_couplers: int
     n_two_qubit_couplers: int
 
@@ -104,16 +120,19 @@ def summarize_noise(backend: BackendV2) -> NoiseSummary:
             elif gate_name in one_qubit_gate_names:
                 one_qubit_errors.append(instr_props.error)
 
-    n_disabled = sum(1 for e in two_qubit_errors if e >= 0.999)
+    n_disabled_1q = sum(1 for e in one_qubit_errors if e >= 0.999)
+    n_disabled_2q = sum(1 for e in two_qubit_errors if e >= 0.999)
 
     return NoiseSummary(
         backend_name=backend.name,
         n_qubits=n_qubits,
         mean_t1_us=float(np.mean(t1_s)) * 1e6,
         mean_t2_us=float(np.mean(t2_s)) * 1e6,
-        mean_one_qubit_gate_error=float(np.mean(one_qubit_errors)),
+        median_one_qubit_gate_error=float(np.median(one_qubit_errors)),
         median_two_qubit_gate_error=float(np.median(two_qubit_errors)),
         median_readout_error=float(np.median(readout_errors)),
-        n_disabled_two_qubit_couplers=n_disabled,
+        n_disabled_one_qubit_gates=n_disabled_1q,
+        n_one_qubit_gates=len(one_qubit_errors),
+        n_disabled_two_qubit_couplers=n_disabled_2q,
         n_two_qubit_couplers=len(two_qubit_errors),
     )

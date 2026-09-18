@@ -29,11 +29,16 @@ def test_summarize_noise_reports_physically_sane_real_device_numbers() -> None:
 
     # Real IBM Heron-class error rates: single-qubit gates ~1e-4, two-qubit gates
     # (median, excluding disabled couplers) ~1e-3 to 1e-2, readout ~1e-2.
-    assert 0 < summary.mean_one_qubit_gate_error < 1e-2
+    assert 0 < summary.median_one_qubit_gate_error < 1e-2
     assert 0 < summary.median_two_qubit_gate_error < 5e-2
     assert 0 < summary.median_readout_error < 0.2
 
     # The real, empirically-found pathology: some couplers are disabled (error==1.0
     # sentinel) in this calibration snapshot, which is why the median (not mean) is
-    # used above.
+    # used above. FakeTorino's snapshot happens to show this only for two-qubit
+    # couplers, not single-qubit gates (the field still exists and is correctly zero
+    # here -- the live `ibm_marrakesh` case where one-qubit gates ARE disabled too was
+    # found and fixed separately during Phase 6, see models.py's module docstring).
     assert 0 < summary.n_disabled_two_qubit_couplers < summary.n_two_qubit_couplers
+    assert summary.n_disabled_one_qubit_gates == 0
+    assert summary.n_one_qubit_gates > 0
