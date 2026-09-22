@@ -20,10 +20,12 @@ theme:
 
 nav:
   - Home: index.md
+  - Findings: findings.md
   - API Reference:
       - chemistry: api/chemistry.md
       - ansatz: api/ansatz.md
       - optimization: api/optimization.md
+      - noise: api/noise.md
       - experiment / viz / ibm_account: api/infrastructure.md
 
 plugins:
